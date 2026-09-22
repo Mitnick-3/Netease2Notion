@@ -71,38 +71,47 @@ def query_notion_existing(song_id):
 def sync_to_notion(song):
     page_id = query_notion_existing(song["id"])
     
+    # 确保 URL 是标准的 https 开头
+    cover_url = song.get("cover", "")
+    if cover_url and cover_url.startswith("http://"):
+        cover_url = cover_url.replace("http://", "https://")
+
     properties = {
-        "Song": {"title": [{"text": {"content": song["name"]}}]},
-        "Artist": {"rich_text": [{"text": {"content": song["artist"]}}]},
-        "Album": {"rich_text": [{"text": {"content": song["album"]}}]},
-        "PlayCount": {"number": song["play_count"]},
-        "MusicID": {"rich_text": [{"text": {"content": song["id"]}}]},
+        "Song": {"title": [{"text": {"content": song["name"] or "未知歌名"}}]},
+        "Artist": {"rich_text": [{"text": {"content": song["artist"] or "未知歌手"}}]},
+        "Album": {"rich_text": [{"text": {"content": song["album"] or "未知专辑"}}]},
+        "PlayCount": {"number": int(song["play_count"] or 0)},
+        "MusicID": {"rich_text": [{"text": {"content": str(song["id"])}}]},
         "Url": {"url": song["url"]}
     }
     
-    if song.get("cover"):
+    # 仅当封面 URL 有效且为 https 时才添加 Cover 字段
+    if cover_url and cover_url.startswith("https://"):
         properties["Cover"] = {
             "files": [{
-                "name": f"{song['id']}_cover.jpg",
+                "name": f"cover_{song['id']}.jpg",
                 "type": "external",
-                "external": {"url": song["cover"]}
+                "external": {"url": cover_url}
             }]
         }
 
     if page_id:
-        # 更新记录
         url = f"https://api.notion.com/v1/pages/{page_id}"
         resp = requests.patch(url, headers=NOTION_HEADERS, json={"properties": properties})
-        print(f"更新歌曲: {song['name']} -> HTTP {resp.status_code}")
     else:
-        # 新增记录
         url = "https://api.notion.com/v1/pages"
         payload = {
             "parent": {"database_id": NOTION_DATABASE_ID},
             "properties": properties
         }
         resp = requests.post(url, headers=NOTION_HEADERS, json=payload)
-        print(f"新增歌曲: {song['name']} -> HTTP {resp.status_code}")
+    
+    if resp.status_code == 200:
+        print(f"同步成功: {song['name']}")
+    else:
+        # 打印详细的 Notion 报错 JSON 内容，方便定位
+        print(f"同步失败: {song['name']} -> HTTP {resp.status_code}")
+        print(f"报错详情: {resp.text}")
 
 def main():
     songs = get_ncm_record(NCM_USER_ID, NCM_COOKIE)
