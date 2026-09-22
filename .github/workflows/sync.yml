@@ -1,0 +1,33 @@
+name: Sync NetEase Cloud Music to Notion
+
+on:
+  schedule:
+    # 每天 UTC 0 点（北京时间早 8 点）自动运行一次
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 支持手动点击按钮触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Sync Script
+        env:
+          NCM_COOKIE: ${{ secrets.NCM_COOKIE }}
+          NCM_USER_ID: ${{ secrets.NCM_USER_ID }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: |
+          python sync.py
